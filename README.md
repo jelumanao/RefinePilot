@@ -13,4 +13,6 @@ Offline Android refinement assistant prototype for RAN Mobile.
 ## Build
 GitHub Actions builds a debug APK on every push to `main`. Open the repository's **Actions** tab, select the latest **Build RefinePilot APK** run, then download the `RefinePilot-debug-apk` artifact.
 
+Build pipeline initialized for v0.1.
+
 > Test with disposable equipment first. Screen coordinates/detection are prototype-calibrated and may need calibration for your phone resolution. Automation may also be restricted by the game's rules.
