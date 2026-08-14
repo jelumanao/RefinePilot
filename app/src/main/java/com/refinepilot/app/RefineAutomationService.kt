@@ -51,9 +51,8 @@ class RefineAutomationService : Service() {
     private var attempts = 0
     private var attemptsOnCurrentBurrStack = 0
     private var burrReloads = 0
-    private var unknownStreak = 0
-    private var confirmedNineReads = 0
-    private var previousVerifiedLevel: Int? = null
+    private var captureMisses = 0
+    private var confirmedTargetReads = 0
     private var currentLevel: Int? = null
     private val paused = AtomicBoolean(false)
     private val stopped = AtomicBoolean(false)
@@ -103,64 +102,50 @@ class RefineAutomationService : Service() {
 
     private fun startLoop() {
         executor = Executors.newSingleThreadScheduledExecutor()
-        executor?.scheduleWithFixedDelay({ tick() }, 1200, 2600, TimeUnit.MILLISECONDS)
+        executor?.scheduleWithFixedDelay({ tick() }, 1800, 3000, TimeUnit.MILLISECONDS)
     }
 
     private fun tick() {
         if (stopped.get() || paused.get() || !busy.compareAndSet(false, true)) return
         try {
             if (attempts >= maxAttempts) return stopAutomation("Max attempts reached")
+
             val bitmap = latestBitmap()
             if (bitmap == null) {
-                unknownStreak++
-                updateOverlay("Waiting for screen…")
-                if (unknownStreak >= 8) stopAutomation("No readable refinement screen")
+                captureMisses++
+                updateOverlay("Waiting for screen capture…")
+                if (captureMisses >= 12) stopAutomation("Screen capture unavailable")
                 return
             }
+            captureMisses = 0
 
+            // Level recognition is now optional for normal refining. It is used only
+            // to stop on the selected target. A failed OCR read no longer blocks the
+            // REFINE tap or shuts the service down.
             val result = DigitRecognizer.detectLevel(bitmap)
-            if (result == null) {
-                bitmap.recycle()
-                unknownStreak++
-                previousVerifiedLevel = null
-                confirmedNineReads = 0
-                updateOverlay("Refinement level not detected")
-                if (unknownStreak >= 6) stopAutomation("Unknown screen — safety stop")
-                return
-            }
-
-            unknownStreak = 0
-            currentLevel = result.level
-
-            // Require the same grade on two consecutive captures before acting.
-            if (previousVerifiedLevel != result.level) {
-                previousVerifiedLevel = result.level
-                confirmedNineReads = if (result.level == 9) 1 else 0
-                bitmap.recycle()
-                updateOverlay("Verifying +${result.level}…")
-                return
-            }
-
-            if (result.level == 9) {
-                confirmedNineReads++
-                bitmap.recycle()
-                if (confirmedNineReads >= 2) return stopAutomation("+9 confirmed ✅ Refinement stopped")
-                updateOverlay("Confirming +9…")
-                return
+            if (result != null) {
+                currentLevel = result.level
+                if (result.level >= targetLevel) {
+                    confirmedTargetReads++
+                    if (confirmedTargetReads >= 2) {
+                        bitmap.recycle()
+                        return stopAutomation("+$targetLevel confirmed ✅ Refinement stopped")
+                    }
+                    bitmap.recycle()
+                    updateOverlay("Confirming +$targetLevel…")
+                    return
+                } else {
+                    confirmedTargetReads = 0
+                }
             } else {
-                confirmedNineReads = 0
-            }
-
-            if (result.level >= targetLevel) {
-                bitmap.recycle()
-                return stopAutomation("Target +$targetLevel reached ✅")
+                currentLevel = null
+                confirmedTargetReads = 0
             }
 
             val accessibility = RefineAccessibilityService.instance
                 ?: run { bitmap.recycle(); return stopAutomation("Accessibility service disconnected") }
 
-            // Fine Burr comes in stacks of 30. After 30 sent refine attempts, select another
-            // visible Fine Burr stack from Refine Inventory before continuing.
+            // Switch to another visible Fine Burr stack after each 30 sent attempts.
             if (attemptsOnCurrentBurrStack >= BURR_STACK_SIZE) {
                 val burrSlots = BurrInventoryDetector.findFineBurrSlots(bitmap)
                 bitmap.recycle()
@@ -173,18 +158,19 @@ class RefineAutomationService : Service() {
                 }
                 attemptsOnCurrentBurrStack = 0
                 burrReloads++
-                previousVerifiedLevel = null
                 return
             }
 
             bitmap.recycle()
-            updateOverlay("+${result.level} verified • refining…")
+            val state = currentLevel?.let { "+$it detected • refining…" }
+                ?: "Level unread • refining in fixed-position mode…"
+            updateOverlay(state)
+
             if (!accessibility.tapNormalized(REFINE_X, REFINE_Y)) {
                 return stopAutomation("Tap could not be dispatched")
             }
             attempts++
             attemptsOnCurrentBurrStack++
-            previousVerifiedLevel = null
             updateOverlay("Attempt #$attempts sent")
         } catch (_: Throwable) {
             stopAutomation("Safety stop: capture error")
@@ -223,7 +209,11 @@ class RefineAutomationService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
-        ).apply { gravity = Gravity.TOP or Gravity.START; x = 24; y = 80 }
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 24
+            y = 80
+        }
 
         view.findViewById<Button>(R.id.btnPauseOverlay).setOnClickListener {
             val nowPaused = !paused.get()
@@ -233,10 +223,19 @@ class RefineAutomationService : Service() {
         }
         view.findViewById<Button>(R.id.btnStopOverlay).setOnClickListener { stopAutomation("Stopped by user") }
 
-        var startX = 0f; var startY = 0f; var originalX = 0; var originalY = 0
+        var startX = 0f
+        var startY = 0f
+        var originalX = 0
+        var originalY = 0
         view.findViewById<TextView>(R.id.overlayTitle).setOnTouchListener { _, event ->
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> { startX = event.rawX; startY = event.rawY; originalX = params.x; originalY = params.y; true }
+                MotionEvent.ACTION_DOWN -> {
+                    startX = event.rawX
+                    startY = event.rawY
+                    originalX = params.x
+                    originalY = params.y
+                    true
+                }
                 MotionEvent.ACTION_MOVE -> {
                     params.x = originalX + (event.rawX - startX).toInt()
                     params.y = originalY + (event.rawY - startY).toInt()
@@ -266,9 +265,12 @@ class RefineAutomationService : Service() {
             runCatching { overlay?.let { wm.removeView(it) } }
             overlay = null
             executor?.shutdownNow()
-            virtualDisplay?.release(); virtualDisplay = null
-            imageReader?.close(); imageReader = null
-            runCatching { projection?.stop() }; projection = null
+            virtualDisplay?.release()
+            virtualDisplay = null
+            imageReader?.close()
+            imageReader = null
+            runCatching { projection?.stop() }
+            projection = null
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
@@ -289,7 +291,12 @@ class RefineAutomationService : Service() {
 
     private fun buildNotification(text: String): Notification {
         val stopIntent = Intent(this, RefineAutomationService::class.java).apply { action = ACTION_STOP }
-        val stopPending = PendingIntent.getService(this, 1, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val stopPending = PendingIntent.getService(
+            this,
+            1,
+            stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_manage)
             .setContentTitle("RefinePilot • Target +$targetLevel")
@@ -314,7 +321,7 @@ class RefineAutomationService : Service() {
         private const val NOTIFICATION_ID = 4109
         private const val BURR_STACK_SIZE = 30
 
-        // Calibrated from the supplied 1280x576 RAN screenshot.
+        // Calibrated from the user's 1280x576 RAN refinement screenshot.
         private const val REFINE_X = 0.364f
         private const val REFINE_Y = 0.937f
     }
