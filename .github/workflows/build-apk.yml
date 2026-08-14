@@ -26,6 +26,9 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Verify Android project archive
+        run: unzip -t RefinePilot-v0.1-offline.zip
+
       - name: Extract Android project
         run: unzip -q RefinePilot-v0.1-offline.zip -d build-src
 
