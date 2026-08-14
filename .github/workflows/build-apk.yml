@@ -32,12 +32,37 @@ jobs:
           test -f app/build.gradle.kts
           test -f app/src/main/AndroidManifest.xml
 
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+      - name: Build release APK
+        run: gradle --no-daemon assembleRelease
 
-      - name: Upload installable APK
+      - name: Create release signing certificate
+        run: |
+          keytool -genkeypair \
+            -keystore refinepilot-release.jks \
+            -storepass refinepilot2026 \
+            -keypass refinepilot2026 \
+            -alias refinepilot \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=RefinePilot, OU=Personal Build, O=RefinePilot, L=Tandag, ST=Surigao del Sur, C=PH"
+
+      - name: Sign release APK
+        run: |
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          test -n "$APKSIGNER"
+          "$APKSIGNER" sign \
+            --ks refinepilot-release.jks \
+            --ks-pass pass:refinepilot2026 \
+            --key-pass pass:refinepilot2026 \
+            --ks-key-alias refinepilot \
+            --out RefinePilot-v0.2-release.apk \
+            app/build/outputs/apk/release/app-release-unsigned.apk
+          "$APKSIGNER" verify --verbose --print-certs RefinePilot-v0.2-release.apk
+
+      - name: Upload signed release APK
         uses: actions/upload-artifact@v4
         with:
-          name: RefinePilot-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: RefinePilot-v0.2-release-apk
+          path: RefinePilot-v0.2-release.apk
           if-no-files-found: error
