@@ -61,7 +61,8 @@ class RefineAutomationService : Service() {
     private var preTargetReads = 0
     private var targetArmed = false
     private var currentLevel: Int? = null
-    private val paused = AtomicBoolean(false)
+    private val paused = AtomicBoolean(true)
+    private val hasStarted = AtomicBoolean(false)
     private val stopped = AtomicBoolean(false)
     private val busy = AtomicBoolean(false)
 
@@ -80,7 +81,7 @@ class RefineAutomationService : Service() {
         targetLevel = intent.getIntExtra(EXTRA_TARGET, 9).coerceIn(1, 9)
         maxAttempts = intent.getIntExtra(EXTRA_MAX_ATTEMPTS, 250).coerceIn(1, 5000)
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification("Starting…"))
+        startForeground(NOTIFICATION_ID, buildNotification("Ready • open RAN and press Start"))
         if (!Settings.canDrawOverlays(this)) return stopAutomation("Overlay permission missing")
 
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
@@ -131,9 +132,6 @@ class RefineAutomationService : Service() {
                 currentLevel = result.level
                 val preTarget = targetLevel - 1
 
-                // A target stop is armed only after the immediately preceding grade
-                // has itself been confirmed twice. This prevents a stable OCR error
-                // (notably +6 being mistaken for +7/+8) from closing the automation.
                 if (result.level == preTarget) {
                     confirmedTargetReads = 0
                     preTargetReads++
@@ -152,8 +150,6 @@ class RefineAutomationService : Service() {
                     confirmedTargetReads = 0
                 }
 
-                // Stop only on the exact selected target, never on a value merely
-                // greater than it, and require three consecutive target reads.
                 if (result.level == targetLevel && targetArmed) {
                     confirmedTargetReads++
                     bitmap.recycle()
@@ -247,7 +243,19 @@ class RefineAutomationService : Service() {
             y = 80
         }
 
+        pauseButton?.text = "Start"
+        targetSelectorRow?.visibility = View.VISIBLE
         pauseButton?.setOnClickListener {
+            val wasStarted = hasStarted.get()
+            if (!wasStarted) {
+                hasStarted.set(true)
+                paused.set(false)
+                pauseButton?.text = "Pause"
+                targetSelectorRow?.visibility = View.GONE
+                updateOverlay("Started")
+                return@setOnClickListener
+            }
+
             val nowPaused = !paused.get()
             paused.set(nowPaused)
             pauseButton?.text = if (nowPaused) "Resume" else "Pause"
@@ -294,7 +302,7 @@ class RefineAutomationService : Service() {
             }
         }
         wm.addView(view, params)
-        updateOverlay("Open RAN Item Refinement")
+        updateOverlay("Ready • set up RAN, then press Start")
     }
 
     private fun resetSessionState() {
@@ -306,7 +314,13 @@ class RefineAutomationService : Service() {
         preTargetReads = 0
         targetArmed = false
         currentLevel = null
-        updateOverlay(if (paused.get()) "Paused • session reset" else "Session reset • refining continues")
+        updateOverlay(
+            when {
+                !hasStarted.get() -> "Ready • session reset"
+                paused.get() -> "Paused • session reset"
+                else -> "Session reset • refining continues"
+            }
+        )
     }
 
     private fun updateTargetWhilePaused(newTarget: Int) {
@@ -315,7 +329,7 @@ class RefineAutomationService : Service() {
         confirmedTargetReads = 0
         preTargetReads = 0
         targetArmed = false
-        updateOverlay("Paused • target changed to +$targetLevel")
+        updateOverlay(if (hasStarted.get()) "Paused • target changed to +$targetLevel" else "Ready • target changed to +$targetLevel")
     }
 
     private fun updateOverlay(state: String) {
