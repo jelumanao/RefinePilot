@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -26,19 +26,18 @@ jobs:
         with:
           gradle-version: '8.13'
 
-      - name: Verify Android project archive
-        run: unzip -t RefinePilot-v0.1-offline.zip
-
-      - name: Extract Android project
-        run: unzip -q RefinePilot-v0.1-offline.zip -d build-src
+      - name: Verify Android source
+        run: |
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
+          test -f app/src/main/AndroidManifest.xml
 
       - name: Build debug APK
-        working-directory: build-src/RefinePilot
         run: gradle --no-daemon assembleDebug
 
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
           name: RefinePilot-debug-apk
-          path: build-src/RefinePilot/app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
