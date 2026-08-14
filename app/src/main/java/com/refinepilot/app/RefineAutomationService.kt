@@ -58,8 +58,6 @@ class RefineAutomationService : Service() {
     private var burrReloads = 0
     private var captureMisses = 0
     private var confirmedTargetReads = 0
-    private var preTargetReads = 0
-    private var targetArmed = false
     private var currentLevel: Int? = null
     private val paused = AtomicBoolean(true)
     private val hasStarted = AtomicBoolean(false)
@@ -130,27 +128,12 @@ class RefineAutomationService : Service() {
             val result = DigitRecognizer.detectLevel(bitmap)
             if (result != null) {
                 currentLevel = result.level
-                val preTarget = targetLevel - 1
 
-                if (result.level == preTarget) {
-                    confirmedTargetReads = 0
-                    preTargetReads++
-                    if (!targetArmed && preTargetReads < PRE_TARGET_CONFIRM_READS) {
-                        bitmap.recycle()
-                        updateOverlay("Verifying +$preTarget before target…")
-                        return
-                    }
-                    targetArmed = true
-                    preTargetReads = PRE_TARGET_CONFIRM_READS
-                } else if (result.level < preTarget) {
-                    targetArmed = false
-                    preTargetReads = 0
-                    confirmedTargetReads = 0
-                } else if (result.level != targetLevel) {
-                    confirmedTargetReads = 0
-                }
-
-                if (result.level == targetLevel && targetArmed) {
+                // Stop only on the exact selected target. Do not require seeing
+                // target-1 first because OCR may miss that intermediate grade.
+                // Require multiple consecutive confident reads to avoid a false
+                // +6 -> +7/+8 classification stopping the session prematurely.
+                if (result.level == targetLevel && result.confidence >= TARGET_STOP_MIN_CONFIDENCE) {
                     confirmedTargetReads++
                     bitmap.recycle()
                     if (confirmedTargetReads >= TARGET_CONFIRM_READS) {
@@ -158,7 +141,7 @@ class RefineAutomationService : Service() {
                     }
                     updateOverlay("Confirming exact +$targetLevel (${confirmedTargetReads}/$TARGET_CONFIRM_READS)…")
                     return
-                } else if (result.level != targetLevel) {
+                } else {
                     confirmedTargetReads = 0
                 }
             } else {
@@ -311,8 +294,6 @@ class RefineAutomationService : Service() {
         burrReloads = 0
         captureMisses = 0
         confirmedTargetReads = 0
-        preTargetReads = 0
-        targetArmed = false
         currentLevel = null
         updateOverlay(
             when {
@@ -327,8 +308,6 @@ class RefineAutomationService : Service() {
         if (!paused.get()) return
         targetLevel = newTarget.coerceIn(1, 9)
         confirmedTargetReads = 0
-        preTargetReads = 0
-        targetArmed = false
         updateOverlay(if (hasStarted.get()) "Paused • target changed to +$targetLevel" else "Ready • target changed to +$targetLevel")
     }
 
@@ -404,8 +383,8 @@ class RefineAutomationService : Service() {
         private const val CHANNEL_ID = "refinepilot_automation"
         private const val NOTIFICATION_ID = 4109
         private const val BURR_STACK_SIZE = 30
-        private const val PRE_TARGET_CONFIRM_READS = 2
         private const val TARGET_CONFIRM_READS = 3
+        private const val TARGET_STOP_MIN_CONFIDENCE = 0.34f
 
         private const val REFINE_X = 0.364f
         private const val REFINE_Y = 0.937f
