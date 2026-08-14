@@ -12,7 +12,9 @@ object BurrInventoryDetector {
     private const val GRID_RIGHT = 0.895f
     private const val GRID_BOTTOM = 0.889f
     private const val COLS = 6
-    private const val ROWS = 6
+    // The visible Refine Inventory area has 5 rows, not 6. Using 6 rows shifted
+    // the tap target downward and could select the empty cell below a detected Burr.
+    private const val ROWS = 5
 
     fun findFineBurrSlots(screen: Bitmap): List<Slot> {
         if (screen.width < screen.height) return emptyList()
