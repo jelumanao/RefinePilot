@@ -1,0 +1,12 @@
+<resources>
+    <style name="Theme.RefinePilot" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="colorPrimary">@color/text_primary</item>
+        <item name="colorOnPrimary">@color/bg</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+    </style>
+</resources>
