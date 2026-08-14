@@ -229,6 +229,10 @@ class RefineAutomationService : Service() {
             updateOverlay(if (nowPaused) "Paused • choose target if needed" else "Resumed")
         }
 
+        view.findViewById<Button>(R.id.btnResetOverlay).setOnClickListener {
+            resetSessionState()
+        }
+
         minimizeButton?.setOnClickListener {
             minimized = !minimized
             overlayDetails?.visibility = if (minimized) View.GONE else View.VISIBLE
@@ -265,6 +269,16 @@ class RefineAutomationService : Service() {
         }
         wm.addView(view, params)
         updateOverlay("Open RAN Item Refinement")
+    }
+
+    private fun resetSessionState() {
+        attempts = 0
+        attemptsOnCurrentBurrStack = 0
+        burrReloads = 0
+        captureMisses = 0
+        confirmedTargetReads = 0
+        currentLevel = null
+        updateOverlay(if (paused.get()) "Paused • session reset" else "Session reset • refining continues")
     }
 
     private fun updateTargetWhilePaused(newTarget: Int) {
