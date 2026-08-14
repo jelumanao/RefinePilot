@@ -49,7 +49,11 @@ class RefineAutomationService : Service() {
     private var targetLevel = 9
     private var maxAttempts = 250
     private var attempts = 0
+    private var attemptsOnCurrentBurrStack = 0
+    private var burrReloads = 0
     private var unknownStreak = 0
+    private var confirmedNineReads = 0
+    private var previousVerifiedLevel: Int? = null
     private var currentLevel: Int? = null
     private val paused = AtomicBoolean(false)
     private val stopped = AtomicBoolean(false)
@@ -113,22 +117,74 @@ class RefineAutomationService : Service() {
                 if (unknownStreak >= 8) stopAutomation("No readable refinement screen")
                 return
             }
+
             val result = DigitRecognizer.detectLevel(bitmap)
-            bitmap.recycle()
             if (result == null) {
+                bitmap.recycle()
                 unknownStreak++
+                previousVerifiedLevel = null
+                confirmedNineReads = 0
                 updateOverlay("Refinement level not detected")
                 if (unknownStreak >= 6) stopAutomation("Unknown screen — safety stop")
                 return
             }
+
             unknownStreak = 0
             currentLevel = result.level
-            if (result.level >= targetLevel) return stopAutomation("Target +$targetLevel reached ✅")
 
-            val accessibility = RefineAccessibilityService.instance ?: return stopAutomation("Accessibility service disconnected")
-            updateOverlay("Detected +${result.level} • refining…")
-            if (!accessibility.tapNormalized(REFINE_X, REFINE_Y)) return stopAutomation("Tap could not be dispatched")
+            // Require the same grade on two consecutive captures before acting.
+            if (previousVerifiedLevel != result.level) {
+                previousVerifiedLevel = result.level
+                confirmedNineReads = if (result.level == 9) 1 else 0
+                bitmap.recycle()
+                updateOverlay("Verifying +${result.level}…")
+                return
+            }
+
+            if (result.level == 9) {
+                confirmedNineReads++
+                bitmap.recycle()
+                if (confirmedNineReads >= 2) return stopAutomation("+9 confirmed ✅ Refinement stopped")
+                updateOverlay("Confirming +9…")
+                return
+            } else {
+                confirmedNineReads = 0
+            }
+
+            if (result.level >= targetLevel) {
+                bitmap.recycle()
+                return stopAutomation("Target +$targetLevel reached ✅")
+            }
+
+            val accessibility = RefineAccessibilityService.instance
+                ?: run { bitmap.recycle(); return stopAutomation("Accessibility service disconnected") }
+
+            // Fine Burr comes in stacks of 30. After 30 sent refine attempts, select another
+            // visible Fine Burr stack from Refine Inventory before continuing.
+            if (attemptsOnCurrentBurrStack >= BURR_STACK_SIZE) {
+                val burrSlots = BurrInventoryDetector.findFineBurrSlots(bitmap)
+                bitmap.recycle()
+                if (burrSlots.isEmpty()) return stopAutomation("No Fine Burr stack detected — stopped")
+
+                val next = burrSlots.first()
+                updateOverlay("Loading next Fine Burr stack…")
+                if (!accessibility.tapNormalized(next.xNorm, next.yNorm)) {
+                    return stopAutomation("Could not select next Fine Burr stack")
+                }
+                attemptsOnCurrentBurrStack = 0
+                burrReloads++
+                previousVerifiedLevel = null
+                return
+            }
+
+            bitmap.recycle()
+            updateOverlay("+${result.level} verified • refining…")
+            if (!accessibility.tapNormalized(REFINE_X, REFINE_Y)) {
+                return stopAutomation("Tap could not be dispatched")
+            }
             attempts++
+            attemptsOnCurrentBurrStack++
+            previousVerifiedLevel = null
             updateOverlay("Attempt #$attempts sent")
         } catch (_: Throwable) {
             stopAutomation("Safety stop: capture error")
@@ -198,7 +254,7 @@ class RefineAutomationService : Service() {
         mainHandler.post {
             overlayState?.text = state
             val level = currentLevel?.let { "+$it" } ?: "?"
-            overlayStats?.text = "Current: $level   Target: +$targetLevel\nAttempts: $attempts / $maxAttempts"
+            overlayStats?.text = "Current: $level   Target: +$targetLevel\nAttempts: $attempts / $maxAttempts   Burr reloads: $burrReloads"
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(state))
         }
     }
@@ -256,7 +312,10 @@ class RefineAutomationService : Service() {
         const val EXTRA_MAX_ATTEMPTS = "maxAttempts"
         private const val CHANNEL_ID = "refinepilot_automation"
         private const val NOTIFICATION_ID = 4109
-        private const val REFINE_X = 0.369f
-        private const val REFINE_Y = 0.935f
+        private const val BURR_STACK_SIZE = 30
+
+        // Calibrated from the supplied 1280x576 RAN screenshot.
+        private const val REFINE_X = 0.364f
+        private const val REFINE_Y = 0.937f
     }
 }
