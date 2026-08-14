@@ -45,7 +45,12 @@ class RefineAutomationService : Service() {
     private var overlay: View? = null
     private var overlayState: TextView? = null
     private var overlayStats: TextView? = null
+    private var overlayMiniTarget: TextView? = null
+    private var overlayDetails: View? = null
+    private var targetSelectorRow: View? = null
     private var pauseButton: Button? = null
+    private var minimizeButton: Button? = null
+    private var minimized = false
     private var targetLevel = 9
     private var maxAttempts = 250
     private var attempts = 0
@@ -119,9 +124,6 @@ class RefineAutomationService : Service() {
             }
             captureMisses = 0
 
-            // Level recognition is now optional for normal refining. It is used only
-            // to stop on the selected target. A failed OCR read no longer blocks the
-            // REFINE tap or shuts the service down.
             val result = DigitRecognizer.detectLevel(bitmap)
             if (result != null) {
                 currentLevel = result.level
@@ -145,7 +147,6 @@ class RefineAutomationService : Service() {
             val accessibility = RefineAccessibilityService.instance
                 ?: run { bitmap.recycle(); return stopAutomation("Accessibility service disconnected") }
 
-            // Switch to another visible Fine Burr stack after each 30 sent attempts.
             if (attemptsOnCurrentBurrStack >= BURR_STACK_SIZE) {
                 val burrSlots = BurrInventoryDetector.findFineBurrSlots(bitmap)
                 bitmap.recycle()
@@ -202,7 +203,12 @@ class RefineAutomationService : Service() {
         overlay = view
         overlayState = view.findViewById(R.id.overlayState)
         overlayStats = view.findViewById(R.id.overlayStats)
+        overlayMiniTarget = view.findViewById(R.id.overlayMiniTarget)
+        overlayDetails = view.findViewById(R.id.overlayDetails)
+        targetSelectorRow = view.findViewById(R.id.targetSelectorRow)
         pauseButton = view.findViewById(R.id.btnPauseOverlay)
+        minimizeButton = view.findViewById(R.id.btnMinimizeOverlay)
+
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -215,12 +221,24 @@ class RefineAutomationService : Service() {
             y = 80
         }
 
-        view.findViewById<Button>(R.id.btnPauseOverlay).setOnClickListener {
+        pauseButton?.setOnClickListener {
             val nowPaused = !paused.get()
             paused.set(nowPaused)
             pauseButton?.text = if (nowPaused) "Resume" else "Pause"
-            updateOverlay(if (nowPaused) "Paused" else "Resumed")
+            targetSelectorRow?.visibility = if (nowPaused) View.VISIBLE else View.GONE
+            updateOverlay(if (nowPaused) "Paused • choose target if needed" else "Resumed")
         }
+
+        minimizeButton?.setOnClickListener {
+            minimized = !minimized
+            overlayDetails?.visibility = if (minimized) View.GONE else View.VISIBLE
+            minimizeButton?.text = if (minimized) "+" else "−"
+            runCatching { wm.updateViewLayout(view, params) }
+        }
+
+        view.findViewById<Button>(R.id.btnTarget7).setOnClickListener { updateTargetWhilePaused(7) }
+        view.findViewById<Button>(R.id.btnTarget8).setOnClickListener { updateTargetWhilePaused(8) }
+        view.findViewById<Button>(R.id.btnTarget9).setOnClickListener { updateTargetWhilePaused(9) }
         view.findViewById<Button>(R.id.btnStopOverlay).setOnClickListener { stopAutomation("Stopped by user") }
 
         var startX = 0f
@@ -249,9 +267,17 @@ class RefineAutomationService : Service() {
         updateOverlay("Open RAN Item Refinement")
     }
 
+    private fun updateTargetWhilePaused(newTarget: Int) {
+        if (!paused.get()) return
+        targetLevel = newTarget.coerceIn(1, 9)
+        confirmedTargetReads = 0
+        updateOverlay("Paused • target changed to +$targetLevel")
+    }
+
     private fun updateOverlay(state: String) {
         mainHandler.post {
             overlayState?.text = state
+            overlayMiniTarget?.text = "+$targetLevel"
             val level = currentLevel?.let { "+$it" } ?: "?"
             overlayStats?.text = "Current: $level   Target: +$targetLevel\nAttempts: $attempts / $maxAttempts   Burr reloads: $burrReloads"
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(state))
@@ -321,7 +347,6 @@ class RefineAutomationService : Service() {
         private const val NOTIFICATION_ID = 4109
         private const val BURR_STACK_SIZE = 30
 
-        // Calibrated from the user's 1280x576 RAN refinement screenshot.
         private const val REFINE_X = 0.364f
         private const val REFINE_Y = 0.937f
     }
