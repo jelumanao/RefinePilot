@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">RefinePilot</string>
+    <string name="accessibility_desc">RefinePilot uses AccessibilityService only to perform deterministic user-configured taps on the Refine button while automation is running.</string>
+</resources>
