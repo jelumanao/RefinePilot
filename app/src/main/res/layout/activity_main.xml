@@ -65,14 +65,14 @@
 
         <Button android:id="@+id/btnAccessibility" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Enable Accessibility" />
         <Button android:id="@+id/btnOverlay" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Allow Overlay" />
-        <Button android:id="@+id/btnStart" android:layout_width="match_parent" android:layout_height="58dp" android:layout_marginTop="18dp" android:text="START REFINER" android:textStyle="bold" />
+        <Button android:id="@+id/btnStart" android:layout_width="match_parent" android:layout_height="58dp" android:layout_marginTop="18dp" android:text="PREPARE REFINEPILOT" android:textStyle="bold" />
 
         <TextView
             android:id="@+id/txtHint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Test with a disposable item first. After Start, approve Android screen capture, then open the RAN Item Refinement screen."
+            android:text="Prepare RefinePilot, approve screen capture, then open RAN and set up Item Refinement. The floating control stays idle until you press Start."
             android:textColor="@color/text_secondary" />
     </LinearLayout>
 </ScrollView>
