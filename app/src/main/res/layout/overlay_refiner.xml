@@ -104,22 +104,52 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
+            android:gravity="center"
             android:orientation="horizontal">
 
             <Button
                 android:id="@+id/btnPauseOverlay"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="40dp"
                 android:layout_weight="1"
-                android:text="Pause" />
+                android:backgroundTint="#2E7D32"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingHorizontal="4dp"
+                android:text="Pause"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btnResetOverlay"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="5dp"
+                android:layout_weight="1"
+                android:backgroundTint="#F9A825"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingHorizontal="4dp"
+                android:text="Reset"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
 
             <Button
                 android:id="@+id/btnStopOverlay"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="5dp"
                 android:layout_weight="1"
-                android:text="Stop" />
+                android:backgroundTint="#C62828"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingHorizontal="4dp"
+                android:text="Stop"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>
