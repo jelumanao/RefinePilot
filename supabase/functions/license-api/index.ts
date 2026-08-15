@@ -59,15 +59,24 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  const pepper = Deno.env.get('LICENSE_PEPPER')
-  const adminKey = Deno.env.get('ADMIN_API_KEY')
-  if (!supabaseUrl || !serviceRole || !pepper || !adminKey) {
+  if (!supabaseUrl || !serviceRole) {
     return response(503, { ok: false, code: 'server_configuration_error', message: 'License service unavailable.' })
   }
 
   const supabase = createClient(supabaseUrl, serviceRole, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
+
+  let pepper = Deno.env.get('LICENSE_PEPPER') ?? ''
+  if (!pepper) {
+    const { data, error } = await supabase.rpc('rp_get_license_pepper')
+    if (error || typeof data !== 'string' || data.length < 32) {
+      return response(503, { ok: false, code: 'server_configuration_error', message: 'License service unavailable.' })
+    }
+    pepper = data
+  }
+
+  const adminKey = Deno.env.get('ADMIN_API_KEY') ?? ''
   const path = new URL(req.url).pathname.split('/').filter(Boolean).at(-1) ?? ''
   const body = await req.json().catch(() => ({} as Record<string, unknown>))
   const now = new Date()
@@ -150,6 +159,7 @@ Deno.serve(async (req) => {
   }
 
   if (!path.startsWith('admin-')) return response(404, { ok: false, code: 'not_found' })
+  if (!adminKey) return response(503, { ok: false, code: 'admin_not_configured' })
   if (req.headers.get('x-admin-key') !== adminKey) return response(401, { ok: false, code: 'unauthorized' })
 
   if (path === 'admin-create') {
