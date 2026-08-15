@@ -56,6 +56,7 @@ class RefineAutomationService : Service() {
     private var attempts = 0
     private var attemptsOnCurrentBurrStack = 0
     private var burrReloads = 0
+    private var nextBurrSlotIndex = 1
     private var captureMisses = 0
     private var confirmedTargetReads = 0
     private var currentLevel: Int? = null
@@ -129,10 +130,6 @@ class RefineAutomationService : Service() {
             if (result != null) {
                 currentLevel = result.level
 
-                // Stop only on the exact selected target. Do not require seeing
-                // target-1 first because OCR may miss that intermediate grade.
-                // Require multiple consecutive confident reads to avoid a false
-                // +6 -> +7/+8 classification stopping the session prematurely.
                 if (result.level == targetLevel && result.confidence >= TARGET_STOP_MIN_CONFIDENCE) {
                     confirmedTargetReads++
                     bitmap.recycle()
@@ -153,15 +150,25 @@ class RefineAutomationService : Service() {
                 ?: run { bitmap.recycle(); return stopAutomation("Accessibility service disconnected") }
 
             if (attemptsOnCurrentBurrStack >= BURR_STACK_SIZE) {
-                val burrSlots = BurrInventoryDetector.findFineBurrSlots(bitmap)
                 bitmap.recycle()
-                if (burrSlots.isEmpty()) return stopAutomation("No Fine Burr stack detected — stopped")
 
-                val next = burrSlots.first()
-                updateOverlay("Loading next Fine Burr stack…")
-                if (!accessibility.tapNormalized(next.xNorm, next.yNorm)) {
-                    return stopAutomation("Could not select next Fine Burr stack")
+                if (nextBurrSlotIndex >= BURR_INVENTORY_SLOT_COUNT) {
+                    return stopAutomation("All Fine Burr inventory slots consumed — stopped")
                 }
+
+                val col = nextBurrSlotIndex % BURR_INVENTORY_COLS
+                val row = nextBurrSlotIndex / BURR_INVENTORY_COLS
+                val cellW = (BURR_GRID_RIGHT - BURR_GRID_LEFT) / BURR_INVENTORY_COLS
+                val cellH = (BURR_GRID_BOTTOM - BURR_GRID_TOP) / BURR_INVENTORY_ROWS
+                val xNorm = BURR_GRID_LEFT + (col + 0.5f) * cellW
+                val yNorm = BURR_GRID_TOP + (row + 0.52f) * cellH
+
+                updateOverlay("Loading Fine Burr slot ${nextBurrSlotIndex + 1}/$BURR_INVENTORY_SLOT_COUNT…")
+                if (!accessibility.tapNormalized(xNorm, yNorm)) {
+                    return stopAutomation("Could not select Fine Burr slot ${nextBurrSlotIndex + 1}")
+                }
+
+                nextBurrSlotIndex++
                 attemptsOnCurrentBurrStack = 0
                 burrReloads++
                 return
@@ -292,6 +299,7 @@ class RefineAutomationService : Service() {
         attempts = 0
         attemptsOnCurrentBurrStack = 0
         burrReloads = 0
+        nextBurrSlotIndex = 1
         captureMisses = 0
         confirmedTargetReads = 0
         currentLevel = null
@@ -385,6 +393,17 @@ class RefineAutomationService : Service() {
         private const val BURR_STACK_SIZE = 30
         private const val TARGET_CONFIRM_READS = 3
         private const val TARGET_STOP_MIN_CONFIDENCE = 0.34f
+
+        // Deterministic Refine Inventory sequence for the supplied 1280x576 layout.
+        // User manually loads slot 1 before pressing Start. Automatic reload begins
+        // at slot 2, then proceeds left-to-right and top-to-bottom through all 30 slots.
+        private const val BURR_GRID_LEFT = 0.607f
+        private const val BURR_GRID_TOP = 0.172f
+        private const val BURR_GRID_RIGHT = 0.895f
+        private const val BURR_GRID_BOTTOM = 0.889f
+        private const val BURR_INVENTORY_COLS = 6
+        private const val BURR_INVENTORY_ROWS = 5
+        private const val BURR_INVENTORY_SLOT_COUNT = BURR_INVENTORY_COLS * BURR_INVENTORY_ROWS
 
         private const val REFINE_X = 0.364f
         private const val REFINE_Y = 0.937f
