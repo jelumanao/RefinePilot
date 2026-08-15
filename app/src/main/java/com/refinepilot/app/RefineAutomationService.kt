@@ -129,7 +129,6 @@ class RefineAutomationService : Service() {
             val result = DigitRecognizer.detectLevel(bitmap)
             if (result != null) {
                 currentLevel = result.level
-
                 if (result.level == targetLevel && result.confidence >= TARGET_STOP_MIN_CONFIDENCE) {
                     confirmedTargetReads++
                     bitmap.recycle()
@@ -151,9 +150,8 @@ class RefineAutomationService : Service() {
 
             if (attemptsOnCurrentBurrStack >= BURR_STACK_SIZE) {
                 bitmap.recycle()
-
                 if (nextBurrSlotIndex >= BURR_INVENTORY_SLOT_COUNT) {
-                    return stopAutomation("All Fine Burr inventory slots consumed — stopped")
+                    return stopAutomation("All visible Fine Burr inventory slots consumed — stopped")
                 }
 
                 val col = nextBurrSlotIndex % BURR_INVENTORY_COLS
@@ -167,7 +165,6 @@ class RefineAutomationService : Service() {
                 if (!accessibility.tapNormalized(xNorm, yNorm)) {
                     return stopAutomation("Could not select Fine Burr slot ${nextBurrSlotIndex + 1}")
                 }
-
                 nextBurrSlotIndex++
                 attemptsOnCurrentBurrStack = 0
                 burrReloads++
@@ -227,25 +224,17 @@ class RefineAutomationService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = 24
-            y = 80
-        }
+        ).apply { gravity = Gravity.TOP or Gravity.START; x = 24; y = 80 }
 
         pauseButton?.text = "Start"
         targetSelectorRow?.visibility = View.VISIBLE
         pauseButton?.setOnClickListener {
             val wasStarted = hasStarted.get()
             if (!wasStarted) {
-                hasStarted.set(true)
-                paused.set(false)
-                pauseButton?.text = "Pause"
-                targetSelectorRow?.visibility = View.GONE
-                updateOverlay("Started")
+                hasStarted.set(true); paused.set(false); pauseButton?.text = "Pause"
+                targetSelectorRow?.visibility = View.GONE; updateOverlay("Started")
                 return@setOnClickListener
             }
-
             val nowPaused = !paused.get()
             paused.set(nowPaused)
             pauseButton?.text = if (nowPaused) "Resume" else "Pause"
@@ -253,40 +242,26 @@ class RefineAutomationService : Service() {
             updateOverlay(if (nowPaused) "Paused • choose target if needed" else "Resumed")
         }
 
-        view.findViewById<Button>(R.id.btnResetOverlay).setOnClickListener {
-            resetSessionState()
-        }
-
+        view.findViewById<Button>(R.id.btnResetOverlay).setOnClickListener { resetSessionState() }
         minimizeButton?.setOnClickListener {
             minimized = !minimized
             overlayDetails?.visibility = if (minimized) View.GONE else View.VISIBLE
             minimizeButton?.text = if (minimized) "+" else "−"
             runCatching { wm.updateViewLayout(view, params) }
         }
-
         view.findViewById<Button>(R.id.btnTarget7).setOnClickListener { updateTargetWhilePaused(7) }
         view.findViewById<Button>(R.id.btnTarget8).setOnClickListener { updateTargetWhilePaused(8) }
         view.findViewById<Button>(R.id.btnTarget9).setOnClickListener { updateTargetWhilePaused(9) }
         view.findViewById<Button>(R.id.btnStopOverlay).setOnClickListener { stopAutomation("Stopped by user") }
 
-        var startX = 0f
-        var startY = 0f
-        var originalX = 0
-        var originalY = 0
+        var startX = 0f; var startY = 0f; var originalX = 0; var originalY = 0
         view.findViewById<TextView>(R.id.overlayTitle).setOnTouchListener { _, event ->
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    startX = event.rawX
-                    startY = event.rawY
-                    originalX = params.x
-                    originalY = params.y
-                    true
-                }
+                MotionEvent.ACTION_DOWN -> { startX = event.rawX; startY = event.rawY; originalX = params.x; originalY = params.y; true }
                 MotionEvent.ACTION_MOVE -> {
                     params.x = originalX + (event.rawX - startX).toInt()
                     params.y = originalY + (event.rawY - startY).toInt()
-                    runCatching { wm.updateViewLayout(view, params) }
-                    true
+                    runCatching { wm.updateViewLayout(view, params) }; true
                 }
                 else -> false
             }
@@ -296,33 +271,20 @@ class RefineAutomationService : Service() {
     }
 
     private fun resetSessionState() {
-        attempts = 0
-        attemptsOnCurrentBurrStack = 0
-        burrReloads = 0
-        nextBurrSlotIndex = 1
-        captureMisses = 0
-        confirmedTargetReads = 0
-        currentLevel = null
-        updateOverlay(
-            when {
-                !hasStarted.get() -> "Ready • session reset"
-                paused.get() -> "Paused • session reset"
-                else -> "Session reset • refining continues"
-            }
-        )
+        attempts = 0; attemptsOnCurrentBurrStack = 0; burrReloads = 0; nextBurrSlotIndex = 1
+        captureMisses = 0; confirmedTargetReads = 0; currentLevel = null
+        updateOverlay(when { !hasStarted.get() -> "Ready • session reset"; paused.get() -> "Paused • session reset"; else -> "Session reset • refining continues" })
     }
 
     private fun updateTargetWhilePaused(newTarget: Int) {
         if (!paused.get()) return
-        targetLevel = newTarget.coerceIn(1, 9)
-        confirmedTargetReads = 0
+        targetLevel = newTarget.coerceIn(1, 9); confirmedTargetReads = 0
         updateOverlay(if (hasStarted.get()) "Paused • target changed to +$targetLevel" else "Ready • target changed to +$targetLevel")
     }
 
     private fun updateOverlay(state: String) {
         mainHandler.post {
-            overlayState?.text = state
-            overlayMiniTarget?.text = "+$targetLevel"
+            overlayState?.text = state; overlayMiniTarget?.text = "+$targetLevel"
             val level = currentLevel?.let { "+$it" } ?: "?"
             overlayStats?.text = "Current: $level   Target: +$targetLevel\nAttempts: $attempts / $maxAttempts   Burr reloads: $burrReloads"
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(state))
@@ -332,49 +294,25 @@ class RefineAutomationService : Service() {
     private fun stopAutomation(reason: String) {
         if (!stopped.compareAndSet(false, true)) return
         mainHandler.post {
-            overlayState?.text = reason
-            runCatching { overlay?.let { wm.removeView(it) } }
-            overlay = null
-            executor?.shutdownNow()
-            virtualDisplay?.release()
-            virtualDisplay = null
-            imageReader?.close()
-            imageReader = null
-            runCatching { projection?.stop() }
-            projection = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            overlayState?.text = reason; runCatching { overlay?.let { wm.removeView(it) } }; overlay = null
+            executor?.shutdownNow(); virtualDisplay?.release(); virtualDisplay = null; imageReader?.close(); imageReader = null
+            runCatching { projection?.stop() }; projection = null; stopForeground(STOP_FOREGROUND_REMOVE); stopSelf()
         }
     }
 
-    override fun onDestroy() {
-        if (!stopped.get()) stopAutomation("Service ended")
-        super.onDestroy()
-    }
+    override fun onDestroy() { if (!stopped.get()) stopAutomation("Service ended"); super.onDestroy() }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= 26) {
-            getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "RefinePilot automation", NotificationManager.IMPORTANCE_LOW)
-            )
-        }
+        if (Build.VERSION.SDK_INT >= 26) getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "RefinePilot automation", NotificationManager.IMPORTANCE_LOW)
+        )
     }
 
     private fun buildNotification(text: String): Notification {
         val stopIntent = Intent(this, RefineAutomationService::class.java).apply { action = ACTION_STOP }
-        val stopPending = PendingIntent.getService(
-            this,
-            1,
-            stopIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_manage)
-            .setContentTitle("RefinePilot • Target +$targetLevel")
-            .setContentText(text)
-            .setOngoing(true)
-            .addAction(0, "STOP", stopPending)
-            .build()
+        val stopPending = PendingIntent.getService(this, 1, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        return NotificationCompat.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_menu_manage)
+            .setContentTitle("RefinePilot • Target +$targetLevel").setContentText(text).setOngoing(true).addAction(0, "STOP", stopPending).build()
     }
 
     @Suppress("DEPRECATION")
@@ -394,15 +332,15 @@ class RefineAutomationService : Service() {
         private const val TARGET_CONFIRM_READS = 3
         private const val TARGET_STOP_MIN_CONFIDENCE = 0.34f
 
-        // Deterministic Refine Inventory sequence for the supplied 1280x576 layout.
-        // User manually loads slot 1 before pressing Start. Automatic reload begins
-        // at slot 2, then proceeds left-to-right and top-to-bottom through all 30 slots.
+        // The supplied RAN screenshot shows 6 columns x 7 visible rows. Keeping the
+        // same grid bounds but dividing them into only 5 rows made each vertical step
+        // too large, which caused RefinePilot to jump over inventory rows.
         private const val BURR_GRID_LEFT = 0.607f
         private const val BURR_GRID_TOP = 0.172f
         private const val BURR_GRID_RIGHT = 0.895f
         private const val BURR_GRID_BOTTOM = 0.889f
         private const val BURR_INVENTORY_COLS = 6
-        private const val BURR_INVENTORY_ROWS = 5
+        private const val BURR_INVENTORY_ROWS = 7
         private const val BURR_INVENTORY_SLOT_COUNT = BURR_INVENTORY_COLS * BURR_INVENTORY_ROWS
 
         private const val REFINE_X = 0.364f
