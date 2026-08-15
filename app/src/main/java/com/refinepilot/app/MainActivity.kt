@@ -43,9 +43,17 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (BuildConfig.LICENSE_ENFORCEMENT_ENABLED && SecureLicenseStore(this).load() == null) {
+            startActivity(Intent(this, ActivationActivity::class.java))
+            finish()
+            return
+        }
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        updateLicenseStatus()
 
         if (Build.VERSION.SDK_INT >= 33) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
 
@@ -70,8 +78,24 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!::binding.isInitialized) return
         binding.statusAccessibility.text = if (isAccessibilityEnabled()) "Accessibility: ✓ Ready" else "Accessibility: ✕ Required"
         binding.statusOverlay.text = if (Settings.canDrawOverlays(this)) "Overlay: ✓ Ready" else "Overlay: ✕ Required"
+        updateLicenseStatus()
+    }
+
+    private fun updateLicenseStatus() {
+        if (!BuildConfig.LICENSE_ENFORCEMENT_ENABLED) {
+            binding.statusLicense.text = "License: Development build"
+            return
+        }
+        val cache = SecureLicenseStore(this).load()
+        binding.statusLicense.text = if (cache == null) {
+            "License: Verification required"
+        } else {
+            val expiry = cache.expiresAt?.let { " • Expires: $it" }.orEmpty()
+            "License: 🟢 Active • Plan: ${cache.plan.replaceFirstChar { it.uppercase() }} • Device: Registered$expiry"
+        }
     }
 
     private fun isAccessibilityEnabled(): Boolean {
