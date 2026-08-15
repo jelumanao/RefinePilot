@@ -3,10 +3,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val licenseApiUrl = providers.gradleProperty("REFINEPILOT_LICENSE_API_URL")
+private const val DEFAULT_LICENSE_API_URL = "https://yxgqgkgouvpuzycajkvp.supabase.co/functions/v1/license-api"
+
+val configuredLicenseApiUrl = providers.gradleProperty("REFINEPILOT_LICENSE_API_URL")
     .orElse(providers.environmentVariable("REFINEPILOT_LICENSE_API_URL"))
-    .orElse("https://yxgqgkgouvpuzycajkvp.supabase.co/functions/v1/license-api")
-    .get()
+    .orNull
+    ?.trim()
+    .orEmpty()
+val licenseApiUrl = configuredLicenseApiUrl.ifBlank { DEFAULT_LICENSE_API_URL }
 val escapedLicenseApiUrl = licenseApiUrl.replace("\\", "\\\\").replace("\"", "\\\"")
 
 android {
@@ -20,7 +24,7 @@ android {
         versionCode = 3
         versionName = "0.3.0"
         buildConfigField("String", "LICENSE_API_BASE_URL", "\"$escapedLicenseApiUrl\"")
-        buildConfigField("boolean", "LICENSE_ENFORCEMENT_ENABLED", licenseApiUrl.isNotBlank().toString())
+        buildConfigField("boolean", "LICENSE_ENFORCEMENT_ENABLED", "true")
     }
 
     buildFeatures {
