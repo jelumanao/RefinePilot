@@ -8,6 +8,13 @@ on:
 permissions:
   contents: read
 
+env:
+  REFINEPILOT_LICENSE_API_URL: ${{ vars.REFINEPILOT_LICENSE_API_URL }}
+  SIGNING_STORE_B64: ${{ secrets.REFINEPILOT_KEYSTORE_B64 }}
+  SIGNING_STORE_PASSWORD: ${{ secrets.REFINEPILOT_KEYSTORE_PASSWORD }}
+  SIGNING_KEY_ALIAS: ${{ secrets.REFINEPILOT_KEY_ALIAS }}
+  SIGNING_KEY_PASSWORD: ${{ secrets.REFINEPILOT_KEY_PASSWORD }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,37 +39,43 @@ jobs:
           test -f app/build.gradle.kts
           test -f app/src/main/AndroidManifest.xml
 
-      - name: Build release APK
+      - name: Build development APK
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload development APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RefinePilot-v0.3-development-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Build unsigned production release
+        if: env.SIGNING_STORE_B64 != '' && env.SIGNING_STORE_PASSWORD != '' && env.SIGNING_KEY_ALIAS != '' && env.SIGNING_KEY_PASSWORD != ''
         run: gradle --no-daemon assembleRelease
 
-      - name: Create release signing certificate
-        run: |
-          keytool -genkeypair \
-            -keystore refinepilot-release.jks \
-            -storepass refinepilot2026 \
-            -keypass refinepilot2026 \
-            -alias refinepilot \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=RefinePilot, OU=Personal Build, O=RefinePilot, L=Tandag, ST=Surigao del Sur, C=PH"
+      - name: Restore production signing keystore
+        if: env.SIGNING_STORE_B64 != '' && env.SIGNING_STORE_PASSWORD != '' && env.SIGNING_KEY_ALIAS != '' && env.SIGNING_KEY_PASSWORD != ''
+        run: echo "$SIGNING_STORE_B64" | base64 --decode > refinepilot-release.jks
 
-      - name: Sign release APK
+      - name: Sign production release APK
+        if: env.SIGNING_STORE_B64 != '' && env.SIGNING_STORE_PASSWORD != '' && env.SIGNING_KEY_ALIAS != '' && env.SIGNING_KEY_PASSWORD != ''
         run: |
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
           test -n "$APKSIGNER"
           "$APKSIGNER" sign \
             --ks refinepilot-release.jks \
-            --ks-pass pass:refinepilot2026 \
-            --key-pass pass:refinepilot2026 \
-            --ks-key-alias refinepilot \
-            --out RefinePilot-v0.2-release.apk \
+            --ks-pass env:SIGNING_STORE_PASSWORD \
+            --key-pass env:SIGNING_KEY_PASSWORD \
+            --ks-key-alias "$SIGNING_KEY_ALIAS" \
+            --out RefinePilot-v0.3-production.apk \
             app/build/outputs/apk/release/app-release-unsigned.apk
-          "$APKSIGNER" verify --verbose --print-certs RefinePilot-v0.2-release.apk
+          "$APKSIGNER" verify --verbose --print-certs RefinePilot-v0.3-production.apk
+          rm -f refinepilot-release.jks
 
-      - name: Upload signed release APK
+      - name: Upload production APK
+        if: env.SIGNING_STORE_B64 != '' && env.SIGNING_STORE_PASSWORD != '' && env.SIGNING_KEY_ALIAS != '' && env.SIGNING_KEY_PASSWORD != ''
         uses: actions/upload-artifact@v4
         with:
-          name: RefinePilot-v0.2-release-apk
-          path: RefinePilot-v0.2-release.apk
+          name: RefinePilot-v0.3-production-apk
+          path: RefinePilot-v0.3-production.apk
           if-no-files-found: error
