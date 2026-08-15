@@ -1,6 +1,15 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const jsonHeaders = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'content-type, x-admin-key',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+const jsonHeaders = {
+  'Content-Type': 'application/json; charset=utf-8',
+  'Cache-Control': 'no-store',
+  ...corsHeaders,
+}
 
 function response(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders })
@@ -34,6 +43,9 @@ async function hmacHex(secret: string, value: string) {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders })
+  }
   if (req.method !== 'POST') return response(405, { ok: false, code: 'method_not_allowed' })
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
