@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RefinePilot Admin</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <style>
+    :root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0d1117;color:#f0f4f8}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(180deg,#0d1117,#111827)}
+    .wrap{max-width:1180px;margin:auto;padding:24px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
+    .brand{font-size:26px;font-weight:800}.sub{color:#94a3b8;font-size:13px}.card{background:#151b24;border:1px solid #273244;border-radius:16px;padding:18px;box-shadow:0 12px 35px rgba(0,0,0,.2)}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}.stat b{font-size:28px;display:block}.stat span{color:#94a3b8;font-size:12px}
+    .controls{display:grid;grid-template-columns:1.2fr .7fr .6fr 1.4fr auto;gap:10px;align-items:end}.field label{display:block;color:#94a3b8;font-size:12px;margin:0 0 6px}
+    .field input,.field select{width:100%;background:#0f141c;color:#fff;border:1px solid #334155;border-radius:10px;padding:10px 12px;outline:none}
+    .btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}.btn-primary{background:#22c55e;color:#05120a}.btn-amber{background:#f59e0b;color:#1f1300}.btn-red{background:#ef4444;color:#fff}.btn-dark{background:#263244;color:#fff}.btn:disabled{opacity:.5;cursor:not-allowed}
+    .toolbar{display:flex;gap:10px;align-items:center;margin:18px 0}.toolbar input{flex:1;background:#0f141c;color:#fff;border:1px solid #334155;border-radius:10px;padding:11px 12px}
+    .table-wrap{overflow:auto;border:1px solid #263244;border-radius:14px}table{width:100%;border-collapse:collapse;min-width:1000px;background:#111722}th,td{text-align:left;padding:12px;border-bottom:1px solid #263244;font-size:13px;vertical-align:top}th{color:#94a3b8;background:#151b24;position:sticky;top:0}
+    .key{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap}.badge{display:inline-block;padding:4px 8px;border-radius:999px;font-weight:700;font-size:11px;text-transform:capitalize}.active{background:#123922;color:#86efac}.unused{background:#233047;color:#bfdbfe}.expired{background:#442414;color:#fdba74}.suspended{background:#4a3711;color:#fde68a}.revoked{background:#451a1a;color:#fca5a5}
+    .actions{display:flex;gap:6px;flex-wrap:wrap}.actions button{padding:6px 8px;border-radius:8px;border:0;cursor:pointer;font-size:11px;font-weight:700}.muted{color:#94a3b8}.login{max-width:430px;margin:12vh auto}.hidden{display:none!important}.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:20px}.modal .card{max-width:520px;width:100%}.generated{font-size:20px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;margin:14px 0}
+    @media(max-width:800px){.grid{grid-template-columns:repeat(2,1fr)}.controls{grid-template-columns:1fr}.wrap{padding:14px}.top{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+  <div id="loginView" class="wrap login">
+    <div class="card">
+      <h1>🔐 RefinePilot Admin</h1>
+      <p class="sub">Private seller dashboard</p>
+      <div class="field"><label>Admin Key</label><input id="adminKey" type="password" autocomplete="off" placeholder="Enter your private Admin Key"></div>
+      <button id="loginBtn" class="btn btn-primary" style="width:100%;margin-top:12px">Open Dashboard</button>
+      <div id="loginMsg" class="sub" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <div id="appView" class="wrap hidden">
+    <div class="top">
+      <div><div class="brand">🛠 RefinePilot Admin</div><div class="sub">Generate and manage customer activation licenses</div></div>
+      <button id="logoutBtn" class="btn btn-dark">Lock Dashboard</button>
+    </div>
+
+    <div class="grid">
+      <div class="card stat"><b id="statTotal">0</b><span>Total Licenses</span></div>
+      <div class="card stat"><b id="statActive">0</b><span>Active</span></div>
+      <div class="card stat"><b id="statUnused">0</b><span>Unused</span></div>
+      <div class="card stat"><b id="statSuspended">0</b><span>Suspended / Revoked</span></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Generate Activation Key</h3>
+      <div class="controls">
+        <div class="field"><label>Customer name</label><input id="customerName" placeholder="Juan Dela Cruz"></div>
+        <div class="field"><label>Plan</label><select id="plan"><option value="lifetime">Lifetime</option><option value="monthly">Monthly</option><option value="trial">Trial</option></select></div>
+        <div class="field" id="durationField"><label>Days</label><input id="durationDays" type="number" min="1" max="3650" value="30"></div>
+        <div class="field"><label>Customer note</label><input id="customerNote" placeholder="Payment reference / Messenger name"></div>
+        <button id="generateBtn" class="btn btn-primary">Generate Key</button>
+      </div>
+      <div id="createMsg" class="sub" style="margin-top:10px"></div>
+    </div>
+
+    <div class="toolbar"><input id="search" placeholder="Search customer, key, plan or status..."><button id="refreshBtn" class="btn btn-dark">Refresh</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Customer</th><th>Activation Key</th><th>Plan</th><th>Status</th><th>Activation</th><th>Expiration</th><th>Devices</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></div>
+  </div>
+
+  <div id="generatedModal" class="modal hidden"><div class="card"><h3>Activation Key Generated ✅</h3><div id="generatedCustomer" class="sub"></div><div id="generatedKey" class="generated"></div><div style="display:flex;gap:8px"><button id="copyGenerated" class="btn btn-primary">Copy Key</button><button id="closeGenerated" class="btn btn-dark">Close</button></div></div></div>
+
+  <script>
+    const API = 'https://yxgqgkgouvpuzycajkvp.supabase.co/functions/v1/admin-api';
+    let adminKey = sessionStorage.getItem('rp_admin_key') || '';
+    let licenses = [];
+    const el = id => document.getElementById(id);
+    const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const fmt = value => value ? new Date(value).toLocaleString() : '—';
+
+    async function api(path, body = {}) {
+      const response = await fetch(`${API}/${path}`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','x-admin-key':adminKey},
+        body: JSON.stringify(body)
+      });
+      let json = {};
+      try { json = await response.json(); } catch {}
+      if (response.status === 401) throw new Error('Unauthorized');
+      if (!response.ok || !json.ok) throw new Error(json.code || 'Request failed');
+      return json;
+    }
+
+    async function login() {
+      adminKey = el('adminKey').value.trim();
+      el('loginMsg').textContent = 'Checking…';
+      try {
+        await api('list');
+        sessionStorage.setItem('rp_admin_key', adminKey);
+        el('loginView').classList.add('hidden');
+        el('appView').classList.remove('hidden');
+        el('loginMsg').textContent = '';
+        await load();
+      } catch {
+        adminKey = '';
+        el('loginMsg').textContent = 'Invalid Admin Key.';
+      }
+    }
+
+    async function load() {
+      try {
+        const json = await api('list', {search: el('search').value.trim()});
+        licenses = json.licenses || [];
+        render();
+      } catch (error) {
+        if (String(error.message).includes('Unauthorized')) logout();
+        else alert('Unable to load licenses.');
+      }
+    }
+
+    function render() {
+      el('statTotal').textContent = licenses.length;
+      el('statActive').textContent = licenses.filter(x => x.status === 'active').length;
+      el('statUnused').textContent = licenses.filter(x => x.status === 'unused').length;
+      el('statSuspended').textContent = licenses.filter(x => x.status === 'suspended' || x.status === 'revoked').length;
+
+      let html = '';
+      licenses.forEach(x => {
+        const note = x.customer_note ? `<div class="muted">${esc(x.customer_note)}</div>` : '';
+        const key = esc(x.license_key || '');
+        const disabled = x.license_key ? '' : 'disabled';
+        const revokeDisabled = x.status === 'revoked' ? 'disabled' : '';
+        html += `<tr>
+          <td><b>${esc(x.customer_name || 'Unnamed')}</b>${note}</td>
+          <td><span class="key">${key || 'Legacy key unavailable'}</span><div><button class="btn btn-dark copyBtn" data-key="${key}" ${disabled}>Copy</button></div></td>
+          <td style="text-transform:capitalize">${esc(x.license_type)}</td>
+          <td><span class="badge ${esc(x.status)}">${esc(x.status)}</span></td>
+          <td>${fmt(x.activated_at)}</td>
+          <td>${x.license_type === 'lifetime' ? 'Lifetime' : fmt(x.expires_at)}</td>
+          <td>${Number(x.device_count || 0)} / ${Number(x.device_limit || 1)}</td>
+          <td><div class="actions">
+            <button class="btn-dark actBtn" data-action="reset-device" data-id="${x.id}">Reset Device</button>
+            <button class="btn-amber actBtn" data-action="suspend" data-id="${x.id}" ${revokeDisabled}>Suspend</button>
+            <button class="btn-red actBtn" data-action="revoke" data-id="${x.id}" ${revokeDisabled}>Revoke</button>
+          </div></td>
+        </tr>`;
+      });
+      el('rows').innerHTML = html || '<tr><td colspan="8" class="muted">No licenses found.</td></tr>';
+      document.querySelectorAll('.copyBtn').forEach(button => button.onclick = () => navigator.clipboard.writeText(button.dataset.key || ''));
+      document.querySelectorAll('.actBtn').forEach(button => button.onclick = () => doAction(button.dataset.action, button.dataset.id));
+    }
+
+    async function doAction(action, id) {
+      const labels = {'reset-device':'Reset this device binding?','suspend':'Suspend this license?','revoke':'Permanently revoke this license?'};
+      if (!confirm(labels[action] || 'Continue?')) return;
+      try { await api(action, {license_id:id}); await load(); }
+      catch { alert('Action failed.'); }
+    }
+
+    async function generate() {
+      const plan = el('plan').value;
+      const name = el('customerName').value.trim();
+      const note = el('customerNote').value.trim();
+      el('generateBtn').disabled = true;
+      el('createMsg').textContent = 'Generating…';
+      try {
+        const json = await api('create', {
+          plan,
+          customer_name:name,
+          customer_note:note,
+          device_limit:1,
+          duration_days:Number(el('durationDays').value || 1)
+        });
+        el('generatedKey').textContent = json.license_key;
+        el('generatedCustomer').textContent = `${name || 'Unnamed customer'} • ${plan}`;
+        el('generatedModal').classList.remove('hidden');
+        el('customerName').value = '';
+        el('customerNote').value = '';
+        el('createMsg').textContent = '';
+        await load();
+      } catch {
+        el('createMsg').textContent = 'Unable to generate key.';
+      } finally {
+        el('generateBtn').disabled = false;
+      }
+    }
+
+    function planChanged() {
+      const plan = el('plan').value;
+      el('durationField').style.visibility = plan === 'lifetime' ? 'hidden' : 'visible';
+      el('durationDays').value = plan === 'trial' ? '7' : '30';
+    }
+
+    function logout() {
+      sessionStorage.removeItem('rp_admin_key');
+      adminKey = '';
+      el('appView').classList.add('hidden');
+      el('loginView').classList.remove('hidden');
+      el('adminKey').value = '';
+    }
+
+    el('loginBtn').onclick = login;
+    el('adminKey').addEventListener('keydown', event => { if (event.key === 'Enter') login(); });
+    el('logoutBtn').onclick = logout;
+    el('generateBtn').onclick = generate;
+    el('plan').onchange = planChanged;
+    el('refreshBtn').onclick = load;
+    el('copyGenerated').onclick = () => navigator.clipboard.writeText(el('generatedKey').textContent);
+    el('closeGenerated').onclick = () => el('generatedModal').classList.add('hidden');
+    let timer;
+    el('search').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(load, 250); });
+    planChanged();
+    if (adminKey) {
+      el('loginView').classList.add('hidden');
+      el('appView').classList.remove('hidden');
+      load();
+    }
+  </script>
+</body>
+</html>
