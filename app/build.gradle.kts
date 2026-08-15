@@ -5,7 +5,7 @@ plugins {
 
 val licenseApiUrl = providers.gradleProperty("REFINEPILOT_LICENSE_API_URL")
     .orElse(providers.environmentVariable("REFINEPILOT_LICENSE_API_URL"))
-    .orElse("")
+    .orElse("https://yxgqgkgouvpuzycajkvp.supabase.co/functions/v1/license-api")
     .get()
 val escapedLicenseApiUrl = licenseApiUrl.replace("\\", "\\\\").replace("\"", "\\\"")
 
