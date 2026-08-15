@@ -3,6 +3,12 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val licenseApiUrl = providers.gradleProperty("REFINEPILOT_LICENSE_API_URL")
+    .orElse(providers.environmentVariable("REFINEPILOT_LICENSE_API_URL"))
+    .orElse("")
+    .get()
+val escapedLicenseApiUrl = licenseApiUrl.replace("\\", "\\\\").replace("\"", "\\\"")
+
 android {
     namespace = "com.refinepilot.app"
     compileSdk = 35
@@ -11,11 +17,16 @@ android {
         applicationId = "com.refinepilot.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
+        buildConfigField("String", "LICENSE_API_BASE_URL", "\"$escapedLicenseApiUrl\"")
+        buildConfigField("boolean", "LICENSE_ENFORCEMENT_ENABLED", licenseApiUrl.isNotBlank().toString())
     }
 
-    buildFeatures { viewBinding = true }
+    buildFeatures {
+        viewBinding = true
+        buildConfig = true
+    }
 
     buildTypes {
         getByName("debug") {
