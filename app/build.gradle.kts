@@ -3,14 +3,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-private const val DEFAULT_LICENSE_API_URL = "https://yxgqgkgouvpuzycajkvp.supabase.co/functions/v1/license-api"
+val defaultLicenseApiUrl = "https://yxgqgkgouvpuzycajkvp.supabase.co/functions/v1/license-api"
 
 val configuredLicenseApiUrl = providers.gradleProperty("REFINEPILOT_LICENSE_API_URL")
     .orElse(providers.environmentVariable("REFINEPILOT_LICENSE_API_URL"))
     .orNull
     ?.trim()
     .orEmpty()
-val licenseApiUrl = configuredLicenseApiUrl.ifBlank { DEFAULT_LICENSE_API_URL }
+val licenseApiUrl = configuredLicenseApiUrl.ifBlank { defaultLicenseApiUrl }
 val escapedLicenseApiUrl = licenseApiUrl.replace("\\", "\\\\").replace("\"", "\\\"")
 
 android {
